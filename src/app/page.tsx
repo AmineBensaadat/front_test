@@ -1,22 +1,43 @@
+import https from 'node:https';
+
 async function getProducts() {
-  const res = await fetch('https://shop.lmarka.com/api/products', {
-    cache: 'no-store',
+  return new Promise((resolve, reject) => {
+    const req = https.get(
+      'https://shop.lmarka.com/api/products',
+      { rejectUnauthorized: false },
+      (res) => {
+        let body = '';
+
+        res.on('data', (chunk) => {
+          body += chunk;
+        });
+
+        res.on('end', () => {
+          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+            try {
+              resolve(JSON.parse(body));
+            } catch (error) {
+              reject(new Error('Invalid JSON returned by products API'));
+            }
+          } else {
+            reject(new Error(`Products API returned ${res.statusCode}`));
+          }
+        });
+      }
+    );
+
+    req.on('error', reject);
   });
-
-  if (!res.ok) {
-    throw new Error('Failed to fetch products');
-  }
-
-  return res.json();
 }
 
 export default async function Home() {
-  let products = [];
+  let products: unknown[] = [];
   let error: string | null = null;
 
   try {
     const data = await getProducts();
-    products = Array.isArray(data) ? data : (data?.products ?? []);
+    const payload = data as { data?: unknown[]; products?: unknown[] };
+    products = Array.isArray(data) ? (data as unknown[]) : (payload.products ?? payload.data ?? []);
   } catch (err) {
     error = err instanceof Error ? err.message : 'Unknown error';
   }
